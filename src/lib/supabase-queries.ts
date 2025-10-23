@@ -1,0 +1,267 @@
+// Funciones de Supabase para Max Dental (Versión Simplificada para Deploy)
+
+// Tipos para TypeScript
+export interface Patient {
+  id: string
+  created_at: string
+  updated_at: string
+  first_name: string
+  last_name: string
+  middle_initial?: string
+  social_security_number?: string
+  email: string
+  cell_phone: string
+  home_phone?: string
+  birthdate: string
+  age?: number
+  sex: 'M' | 'F'
+  marital_status?: string
+  address: string
+  city: string
+  state: string
+  zip_code: string
+  occupation?: string
+  employer?: string
+  work_address?: string
+  work_phone?: string
+  work_email?: string
+  emergency_contact?: string
+  emergency_phone?: string
+  emergency_work_phone?: string
+  emergency_email?: string
+  insurance?: string
+  insurance_id?: string
+  insurance_group?: string
+  subscriber?: string
+  insurance_other?: string
+  marketing_source?: string
+  referred_by?: string
+  marketing_other?: string
+  contact_preference?: string
+  medical_history?: Record<string, string>
+  medications?: string
+  drug_allergies?: string
+  blood_transfusion?: boolean
+  blood_transfusion_dates?: string
+  fen_phen_redux?: boolean
+  bisphosphonates?: boolean
+  women_info?: Record<string, any>
+  language?: string
+  patient_type?: string
+  signature_data_url?: string
+}
+
+export interface Visit {
+  id: string
+  created_at: string
+  updated_at: string
+  patient_id: string
+  visit_date: string
+  visit_purpose: string
+  visit_purpose_other?: string
+  patient_name: string
+  patient_phone: string
+  patient_email: string
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+  notes?: string
+  created_by?: string
+  form_data?: Record<string, any>
+}
+
+export interface PatientForm {
+  id: string
+  created_at: string
+  patient_id?: string
+  form_type: string
+  form_data: Record<string, any>
+  ip_address?: string
+  user_agent?: string
+  language?: string
+}
+
+export interface ExistingPatientResult {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string
+  birthdate: string
+  last_visit: string
+  medical_history: Record<string, string>
+}
+
+// Función temporal para verificar si Supabase está configurado
+export const isSupabaseConfigured = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return url && key && url !== 'your_supabase_url_here' && key !== 'your_supabase_anon_key_here';
+};
+
+// Función para buscar paciente existente
+export async function findExistingPatient(
+  lastName: string, 
+  phone: string, 
+  birthdate: string
+): Promise<ExistingPatientResult | null> {
+  try {
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
+    // Simular búsqueda en base de datos
+    const mockPatients = [
+      {
+        id: "1",
+        first_name: "Juan",
+        last_name: "Pérez",
+        phone: "305-123-4567",
+        birthdate: "1990-05-15",
+        last_visit: "2024-01-15",
+        medical_history: {
+          "Diabetes": "No",
+          "Hipertensión": "No",
+          "Alergias": "No"
+        }
+      },
+      {
+        id: "2",
+        first_name: "María",
+        last_name: "García",
+        phone: "305-987-6543",
+        birthdate: "1985-03-22",
+        last_visit: "2024-02-10",
+        medical_history: {
+          "Diabetes": "Sí",
+          "Hipertensión": "No",
+          "Alergias": "Sí"
+        }
+      }
+    ];
+
+    const found = mockPatients.find(patient => 
+      patient.last_name.toLowerCase() === lastName.toLowerCase() &&
+      patient.phone === phone &&
+      patient.birthdate === birthdate
+    );
+
+    return found || null;
+  } catch (error) {
+    console.error('Error in findExistingPatient:', error)
+    throw error
+  }
+}
+
+// Función para procesar formulario de paciente nuevo
+export async function processNewPatientForm(formData: any): Promise<{ patient: Patient; visit: Visit; form: PatientForm }> {
+  try {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    // Implementación temporal - retornar datos mock
+    const mockPatient: Patient = {
+      id: 'mock-id',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      first_name: formData.firstName,
+      last_name: formData.lastName,
+      email: formData.email,
+      cell_phone: formData.cellPhone,
+      birthdate: formData.birthdate,
+      sex: formData.sex,
+      address: formData.address,
+      city: formData.city,
+      state: formData.state,
+      zip_code: formData.zipCode,
+      medical_history: formData.medicalHistory,
+      language: formData.lang,
+      patient_type: formData.patientType
+    };
+
+    const mockVisit: Visit = {
+      id: 'mock-visit-id',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      patient_id: 'mock-id',
+      visit_date: new Date().toISOString().split('T')[0],
+      visit_purpose: formData.visitType || 'Chequeo general',
+      patient_name: `${formData.firstName} ${formData.lastName}`,
+      patient_phone: formData.cellPhone,
+      patient_email: formData.email,
+      status: 'scheduled'
+    };
+
+    const mockForm: PatientForm = {
+      id: 'mock-form-id',
+      created_at: new Date().toISOString(),
+      patient_id: 'mock-id',
+      form_type: 'new_patient',
+      form_data: formData,
+      language: formData.lang || 'es'
+    };
+
+    return {
+      patient: mockPatient,
+      visit: mockVisit,
+      form: mockForm
+    };
+  } catch (error) {
+    console.error('Error in processNewPatientForm:', error)
+    throw error
+  }
+}
+
+// Función para procesar formulario de paciente existente
+export async function processExistingPatientForm(
+  patientId: string,
+  visitPurpose: string,
+  visitPurposeOther?: string,
+  formData?: any
+): Promise<{ patient: Patient; visit: Visit }> {
+  try {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    // Implementación temporal - retornar datos mock
+    const mockPatient: Patient = {
+      id: patientId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      first_name: 'Mock',
+      last_name: 'Patient',
+      email: 'mock@email.com',
+      cell_phone: '305-000-0000',
+      birthdate: '1990-01-01',
+      sex: 'M',
+      address: 'Mock Address',
+      city: 'Miami',
+      state: 'FL',
+      zip_code: '33101',
+      medical_history: {},
+      language: 'es',
+      patient_type: 'existing'
+    };
+
+    const mockVisit: Visit = {
+      id: 'mock-visit-id',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      patient_id: patientId,
+      visit_date: new Date().toISOString().split('T')[0],
+      visit_purpose: visitPurpose,
+      visit_purpose_other: visitPurposeOther,
+      patient_name: 'Mock Patient',
+      patient_phone: '305-000-0000',
+      patient_email: 'mock@email.com',
+      status: 'scheduled'
+    };
+
+    return {
+      patient: mockPatient,
+      visit: mockVisit
+    };
+  } catch (error) {
+    console.error('Error in processExistingPatientForm:', error)
+    throw error
+  }
+}

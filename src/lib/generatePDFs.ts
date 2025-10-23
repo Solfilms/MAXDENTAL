@@ -1,0 +1,226 @@
+import jsPDF from 'jspdf';
+import { IntakePayload, Lang } from '@/components/types';
+import { consentTexts } from '@/components/ConsentTexts';
+
+export async function generatePDFs(data: IntakePayload) {
+  const pdfs: { name: string; blob: Blob }[] = [];
+  
+  // Función para agregar texto con wrap
+  function addTextWithWrap(doc: jsPDF, text: string, x: number, y: number, maxWidth: number, lineHeight: number = 6) {
+    const lines = doc.splitTextToSize(text, maxWidth);
+    let currentY = y;
+    
+    for (let i = 0; i < lines.length; i++) {
+      if (currentY > 280) { // Nueva página si se acaba el espacio
+        doc.addPage();
+        currentY = 20;
+      }
+      doc.text(lines[i], x, currentY);
+      currentY += lineHeight;
+    }
+    
+    return currentY;
+  }
+
+  // Función para generar cada PDF
+  async function generateDocumentPDF(docType: 'broken' | 'hipaa' | 'financial') {
+    const doc = new jsPDF();
+    const lang = data.lang;
+    
+    // Header
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MAX DENTAL', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text('GENERAL AND COSMETIC DENTISTRY', 105, 30, { align: 'center' });
+    doc.text('18140 NE 19th Ave, North Miami Beach, FL 33162', 105, 38, { align: 'center' });
+    doc.text('Phone: (305) 948-8882 | Email: info@maxdentalsmile.com', 105, 46, { align: 'center' });
+    
+    // Línea separadora
+    doc.setDrawColor(0, 0, 0);
+    doc.line(20, 55, 190, 55);
+    
+    // Información del paciente
+    doc.setFontSize(10);
+    let y = 65;
+    
+    // Datos completos del paciente
+    const patientInfo = [
+      { label: lang === 'es' ? 'Nombre Completo:' : 'Full Name:', value: `${data.firstName} ${data.middleInitial ? data.middleInitial + ' ' : ''}${data.lastName}` },
+      { label: lang === 'es' ? 'Fecha de Nacimiento:' : 'Date of Birth:', value: data.birthdate },
+      { label: lang === 'es' ? 'Edad:' : 'Age:', value: data.age ? `${data.age} ${lang === 'es' ? 'años' : 'years'}` : 'N/A' },
+      { label: lang === 'es' ? 'Sexo:' : 'Sex:', value: data.sex === 'M' ? (lang === 'es' ? 'Masculino' : 'Male') : (lang === 'es' ? 'Femenino' : 'Female') },
+      { label: lang === 'es' ? 'Estado Civil:' : 'Marital Status:', value: data.maritalStatus },
+      { label: lang === 'es' ? 'Dirección:' : 'Address:', value: `${data.address}, ${data.city}, ${data.state} ${data.zipCode}` },
+      { label: lang === 'es' ? 'Teléfono Casa:' : 'Home Phone:', value: data.homePhone || 'N/A' },
+      { label: lang === 'es' ? 'Teléfono Celular:' : 'Cell Phone:', value: data.cellPhone },
+      { label: lang === 'es' ? 'Email:' : 'Email:', value: data.email },
+      { label: lang === 'es' ? 'No. Seguro Social:' : 'Social Security Number:', value: data.socialSecurityNumber || 'N/A' },
+      { label: lang === 'es' ? 'Ocupación:' : 'Occupation:', value: data.occupation || 'N/A' },
+      { label: lang === 'es' ? 'Empleador:' : 'Employer:', value: data.employer || 'N/A' },
+    ];
+    
+    patientInfo.forEach(info => {
+      doc.text(`${info.label} ${info.value}`, 20, y);
+      y += 5;
+    });
+    
+    y += 10;
+    
+    // Contenido del documento
+    const content = consentTexts[lang][docType];
+    y = addTextWithWrap(doc, content, 20, y, 170);
+    
+    y += 15;
+    
+    // Sección de firma
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(lang === 'es' ? 'FIRMA DEL PACIENTE' : 'PATIENT SIGNATURE', 20, y);
+    
+    y += 10;
+    
+    // Línea para firma
+    doc.setDrawColor(0, 0, 0);
+    doc.line(20, y, 120, y);
+    
+    // Firma digital
+    if (data.signatureDataUrl) {
+      try {
+        const signatureImg = new Image();
+        signatureImg.src = data.signatureDataUrl;
+        
+        // Esperar a que la imagen se cargue
+        await new Promise((resolve) => {
+          signatureImg.onload = resolve;
+        });
+        
+        doc.addImage(signatureImg, 'PNG', 20, y - 15, 80, 15);
+      } catch (error) {
+        console.error('Error adding signature:', error);
+      }
+    }
+    
+    y += 25;
+    
+    // Iniciales del paciente
+    const patientInitials = `${data.firstName.charAt(0).toUpperCase()}${data.middleInitial ? data.middleInitial.toUpperCase() : ''}${data.lastName.charAt(0).toUpperCase()}`;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${lang === 'es' ? 'Iniciales del Paciente:' : 'Patient Initials:'} ${patientInitials}`, 20, y);
+    
+    y += 8;
+    
+    // Fecha de firma
+    const today = new Date().toLocaleDateString();
+    doc.text(`${lang === 'es' ? 'Fecha:' : 'Date:'} ${today}`, 20, y);
+    
+    y += 8;
+    
+    // Nombre completo del paciente
+    doc.text(`${lang === 'es' ? 'Nombre Completo:' : 'Full Name:'} ${data.firstName} ${data.middleInitial ? data.middleInitial + ' ' : ''}${data.lastName}`, 20, y);
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.text('Generated by Max Dental Digital System', 105, 290, { align: 'center' });
+    
+    return doc.output('blob');
+  }
+
+  // Generar los 3 PDFs
+  try {
+    const brokenPDF = await generateDocumentPDF('broken');
+    const hipaaPDF = await generateDocumentPDF('hipaa');
+    const financialPDF = await generateDocumentPDF('financial');
+    
+    pdfs.push(
+      { name: `${data.lang === 'es' ? 'Politica_Citas_Incumplidas' : 'Broken_Appointment_Policy'}_${data.firstName}_${data.lastName}.pdf`, blob: brokenPDF },
+      { name: `${data.lang === 'es' ? 'Aviso_HIPAA' : 'HIPAA_Notice'}_${data.firstName}_${data.lastName}.pdf`, blob: hipaaPDF },
+      { name: `${data.lang === 'es' ? 'Autorizacion_Financiera' : 'Financial_Authorization'}_${data.firstName}_${data.lastName}.pdf`, blob: financialPDF }
+    );
+    
+    return pdfs;
+  } catch (error) {
+    console.error('Error generating PDFs:', error);
+    throw new Error('Error generating PDFs');
+  }
+}
+
+export function downloadPDFs(pdfs: { name: string; blob: Blob }[]) {
+  pdfs.forEach(pdf => {
+    const url = URL.createObjectURL(pdf.blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = pdf.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  });
+}
+
+// Función para convertir Blob a base64
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      resolve(base64.split(',')[1]); // Remover el prefijo data:application/pdf;base64,
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Función para enviar PDFs por email
+export async function sendPDFsByEmail(data: IntakePayload, pdfs: { name: string; blob: Blob }[]) {
+  try {
+    // Convertir PDFs a base64
+    const pdfsBase64 = await Promise.all(
+      pdfs.map(async (pdf) => ({
+        name: pdf.name,
+        content: await blobToBase64(pdf.blob)
+      }))
+    );
+
+    // Preparar datos para el webhook
+    const emailData = {
+      patientData: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        middleInitial: data.middleInitial,
+        email: data.email,
+        phone: data.cellPhone,
+        birthdate: data.birthdate,
+        address: `${data.address}, ${data.city}, ${data.state} ${data.zipCode}`,
+        language: data.lang
+      },
+      pdfs: pdfsBase64,
+      timestamp: new Date().toISOString(),
+      patientType: data.patientType || 'new'
+    };
+
+    // Enviar al webhook de N8N
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || 'https://n8n.srv878154.hstgr.cloud/webhook/maxdental-send-pdfs';
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(emailData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error sending PDFs by email:', error);
+    throw new Error('Error sending PDFs by email');
+  }
+}
